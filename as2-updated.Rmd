@@ -1,0 +1,97 @@
+---
+title: "A2-310"
+author: "Sarah Dumont"
+date: "2025-10-16"
+output: pdf_document
+---
+
+```{r}
+ovarian.dataset <- read.delim("ovarian.data", sep=",", header = FALSE)
+features <- c("perimeter", "area", "smoothness", "symmetry", "concavity", paste("protein", seq(1, 25), sep=""))
+names(ovarian.dataset) <- c("cell_id", "diagnosis", features) # paste0(features,"_mean"), paste0(features,"_se"), paste0(features,"_worst"))
+
+#View(ovarian.dataset)
+```
+
+```{r}
+
+ovarian_numeric <- ovarian.dataset[, -c(1, 2)]
+
+ovarian_scaled <- scale(ovarian_numeric)
+
+pca_result <- prcomp(ovarian_scaled, center = TRUE, scale. = TRUE)
+
+summary_pca <- summary(pca_result)
+prop_var <- summary_pca$importance[2, ]  
+prop_var[1]  
+
+
+```
+
+```{r}
+prop_var[1]  
+
+```
+
+```{r}
+cum_var <- cumsum(prop_var)
+num_PCs_90 <- which(cum_var >= 0.9)[1]
+num_PCs_90 
+```
+
+```{r}
+
+library(factoextra)
+
+cell_class <- ovarian.dataset$diagnosis
+
+fviz_pca_ind(
+  pca_result,
+  geom = "point",
+  habillage = cell_class,       # color by class
+  addEllipses = TRUE,           # 95% confidence ellipses
+  palette = c("#0072B2", "#8A2BE2"), # blue/purple
+  title = "PCA: First Two Principal Components"
+)
+```
+
+
+
+```{r}
+concav <- ovarian.dataset$concavity
+
+plot(area, concav,
+     main = "Scatterplot of Area vs Concavity",
+     xlab = "Area",
+     ylab = "Concavity",
+     pch = 20,
+     col = ifelse(cell_class == "M", "#8A2BE2", "#0072B2"))  # malignant = purple, benign = blue
+
+legend("topright", legend = c("Benign", "Malignant"),
+       col = c("#0072B2", "#8A2BE2"), pch = 20)
+```
+
+```{r}
+boxplot(area ~ diagnosis, data=ovarian.dataset,
+        main="Boxplot of Area by Diagnosis", col=c("blue","red"),
+        xlab="Diagnosis", ylab="Area")
+boxplot(concav ~ diagnosis, data=ovarian.dataset,
+        main="Boxplot of Concavity by Diagnosis", col=c("blue","red"),
+        xlab="Diagnosis", ylab="Concavity")
+```
+
+```{r}
+boxplot(pca_result$x,
+        main = "Distribution of Principal Components",
+        xlab = "",
+        ylab = "PC Scores",
+        col = "#E7B800",  # yellow-orange
+        las = 2,           # vertical PC labels
+        border = "gray40")
+```
+
+
+
+```{r}
+
+``` 
