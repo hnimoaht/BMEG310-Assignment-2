@@ -1,0 +1,42 @@
+---
+title: "A2-310"
+author: "Sarah Dumont"
+date: "2025-10-16"
+output: pdf_document
+---
+
+```{r}
+ovarian.dataset <- read.delim("ovarian.data", sep=",", header = FALSE)
+features <- c("perimeter", "area", "smoothness", "symmetry", "concavity", paste("protein", seq(1, 25), sep=""))
+names(ovarian.dataset) <- c("cell_id", "diagnosis", features) # paste0(features,"_mean"), paste0(features,"_se"), paste0(features,"_worst"))
+
+View(ovarian.dataset)
+```
+
+```{r}
+
+ovarian_numeric <- ovarian.dataset[, -c(1, 2)]
+
+mtcars_scaled <- scale(ovarian_numeric)
+
+pca_result <- prcomp(mtcars_scaled, center = TRUE, scale. = TRUE)
+
+summary(pca_result)
+
+pca_result$rotation
+
+head(pca_result$x)
+
+plot(pca_result, type = "l")
+
+biplot(pca_result, scale = 0)
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
