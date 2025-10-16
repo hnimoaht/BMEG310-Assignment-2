@@ -9,17 +9,38 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 ## 1. Dimensionality reduction
+```{r}
+
+```
 
 ## 1.1 Perform PCA on the features of the dataset. How much of the variation in the data is associated with PC1?
+```{r}
+
+```
 
 ## 1.2 You want to represent 90% of the variance in the data by dimensionality reduction. How many PCs do you need to achieve this? In other word, what would be the dimensionality of the reduced feature space so that you preserve 90% of the variability in the data?
+```{r}
+
+```
+
 
 ## 1.3 As you should know by now, PCA transforms the data into a new space. In a 2-D plot, can you plot the observations corresponding to the first two important PCs? Note, use two different colors to represent the two classes of cells.
+```{r}
+
+```
 
 ## 1.4  Can you plot the "area" and "concavity"  features associated with the cells?
+```{r}
+
+```
 
 ## 1.5 What is the difference between the two plots? Which one gives you better separation between the classes and why?
+```{r}
+
+```
 
 ## 1.6 Plot the distribution of the PCs. Hint: you can use boxplot on the transformed dataset.
+```{r}
 
-##
+```
+
