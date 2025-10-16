@@ -22,4 +22,4 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## 1.6 Plot the distribution of the PCs. Hint: you can use boxplot on the transformed dataset.
 
-
+##
