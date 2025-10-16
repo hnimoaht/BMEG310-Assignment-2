@@ -1,0 +1,63 @@
+---
+title: "Assignment2"
+author: "Group"
+date: "2025-10-14"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+We can first read the data file as given in the assignment:
+```{r}
+ovarian.dataset <- read.delim("ovarian.data", sep=",", header = FALSE)
+features <- c("perimeter", "area", "smoothness", "symmetry", "concavity", paste("protein", seq(1, 25), sep=""))
+names(ovarian.dataset) <- c("cell_id", "diagnosis", features) # paste0(features,"_mean"), paste0(features,"_se"), paste0(features,"_worst"))
+```
+
+Let's load the first few rows to get a sense of the data:
+```{r}
+head(ovarian.dataset)
+```
+
+Question 1: We want to perforom PCA on the features of the dataset and find the variation in the data that is associated with PC1
+
+We can first remove the non-feature column, then perform PCA as follows:
+```{r}
+X <- ovarian.dataset[, features]
+pca_results <- prcomp(X, center = TRUE, scale. = TRUE)
+summary(pca_results)
+```
+
+Now, we can find the percent variance explained by PC1
+```{r}
+pc1_variance <- summary(pca_results)$importance[2, 1] * 100
+pc1_variance
+```
+
+Question 2: We want to represent 90%
+
+You want to represent 90% of the variance in the data by dimensionality reduction. How many PCs do you need to achieve this? In other word, what would be the dimensionality of the reduced feature space so that you preserve 90% of the variability in the data?
+
+# Get cumulative proportion of variance
+cum_var <- summary(pca_result)$importance[3, ]
+
+# Find how many PCs needed for 90%
+num_pc_90 <- which(cum_var >= 0.90)[1]
+cat("Number of PCs needed to preserve 90% of variance:", num_pc_90, "\n")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
