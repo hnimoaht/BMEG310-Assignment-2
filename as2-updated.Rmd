@@ -10,7 +10,7 @@ ovarian.dataset <- read.delim("ovarian.data", sep=",", header = FALSE)
 features <- c("perimeter", "area", "smoothness", "symmetry", "concavity", paste("protein", seq(1, 25), sep=""))
 names(ovarian.dataset) <- c("cell_id", "diagnosis", features) # paste0(features,"_mean"), paste0(features,"_se"), paste0(features,"_worst"))
 
-#View(ovarian.dataset)
+View(ovarian.dataset)
 ```
 
 ```{r}
@@ -93,5 +93,131 @@ boxplot(pca_result$x,
 
 
 ```{r}
+#library(factoextra)
+#library(cluster)
 
+# Perform k-means
+
+km <- kmeans(ovarian_scaled, centers = 2, nstart = 25)
+
+ovarian_scaled_df <- as.data.frame(ovarian_scaled)
+ovarian_scaled_df$Cluster <- km$cluster
+ovarian_scaled_df$Diagnosis <- ovarian.dataset$diagnosis
+
+cluster_labels <- ifelse(km$cluster == 1, "M", "B")
+
+table(True = ovarian_scaled_df$Diagnosis, Cluster = cluster_labels)
+
+fviz_cluster(km, data = ovarian_scaled)
 ``` 
+
+
+```{r}
+
+for (i in 1:10) {
+  set.seed(Sys.time() + i)  # different random seed each run
+kmQ2 <- kmeans(ovarian_scaled, centers = 2, nstart = 1)
+ovarian_scaled_df <- as.data.frame(ovarian_scaled)
+ovarian_scaled_df$Cluster <- kmQ2$cluster
+ovarian_scaled_df$Diagnosis <- ovarian.dataset$diagnosis
+
+cluster_labels <- ifelse(kmQ2$cluster == 1, "M", "B")
+
+table(True = ovarian_scaled_df$Diagnosis, Cluster = cluster_labels)
+
+  # Print iteration number
+  cat("\n--- K-means Run", i, "---\n")
+  
+  # Show confusion table
+  print(table(True = ovarian_scaled_df$Diagnosis, Cluster = cluster_labels))
+}
+
+
+  
+```
+```{r}
+store <- NULL  # initialize before the loop
+
+for (i in 1:5000) {
+set.seed(Sys.time() + i) 
+  kmQ2 <- kmeans(ovarian_scaled, centers = 2, nstart = 1)
+  
+  ovarian_scaled_df <- as.data.frame(ovarian_scaled)
+  ovarian_scaled_df$Cluster <- kmQ2$cluster       
+  ovarian_scaled_df$Diagnosis <- ovarian.dataset$diagnosis
+  
+  cluster_labels <- ifelse(kmQ2$cluster == 1, "M", "B")
+  
+  if(sum(cluster_labels == "M" & ovarian_scaled_df$Diagnosis == "M") +
+   sum(cluster_labels == "B" & ovarian_scaled_df$Diagnosis == "B") <
+   sum(cluster_labels == "M" & ovarian_scaled_df$Diagnosis == "B") +
+   sum(cluster_labels == "B" & ovarian_scaled_df$Diagnosis == "M")) {
+  cluster_labels <- ifelse(kmQ2$cluster == 1, "B", "M")  # flip
+}
+
+  if (!is.null(store) && !identical(store, cluster_labels)) {
+    cat("\n--- K-means Run", i, " (changed) ---\n")
+    print(table(True = ovarian_scaled_df$Diagnosis, Cluster = cluster_labels))
+  }
+  
+  # Update store
+  store <- cluster_labels
+}
+
+
+```
+
+
+```{r}
+
+pca_top_5 <- pca_result$x[, 1:5]
+
+km_pca <- kmeans(pca_top_5, centers = 2, nstart = 25)
+
+ovarian_pca_df <- as.data.frame(pca_top_5)
+ovarian_pca_df$Cluster <- km_pca$cluster
+ovarian_pca_df$Diagnosis <- ovarian.dataset$diagnosis
+
+cluster_labels_pca <- ifelse(km_pca$cluster == 1, "B", "M")
+
+table(True = ovarian_pca_df$Diagnosis, Cluster = cluster_labels_pca)
+
+
+```
+
+```{r}
+
+# Extract top 5 PCs from your PCA result
+pca_top_5 <- as.data.frame(pca_result$x[, 1:5])
+
+# Add diagnosis labels (from original dataset)
+pca_top_5$Diagnosis <- ovarian.dataset$diagnosis
+
+# Run K-means 10 times
+for (i in 1:10) {
+  set.seed(i)  # ensures reproducibility with different seeds each time
+  
+  kmQ2 <- kmeans(pca_top_5[, 1:5], centers = 2, nstart = 1)
+  
+  ovarian_scaled_df <- pca_top_5
+  ovarian_scaled_df$Cluster <- kmQ2$cluster
+  
+  # Convert cluster numbers to labels
+  cluster_labels <- ifelse(kmQ2$cluster == 1, "B", "M")
+  
+  # Print results
+  cat("\n--- K-means Run", i, "---\n")
+  print(table(True = ovarian_scaled_df$Diagnosis, Cluster = cluster_labels))
+}
+
+```
+
+```{r}
+
+
+```
+
+```{r}
+
+
+```
