@@ -110,6 +110,11 @@ table(True = ovarian_scaled_df$Diagnosis, Cluster = cluster_labels)
 
 fviz_cluster(km, data = ovarian_scaled)
 ``` 
+```{r}
+table(ovarian.dataset$diagnosis)
+prop.table(table(ovarian.dataset$diagnosis)) * 100
+
+```
 
 
 ```{r}
@@ -122,15 +127,25 @@ ovarian_scaled_df$Cluster <- kmQ2$cluster
 ovarian_scaled_df$Diagnosis <- ovarian.dataset$diagnosis
 
 cluster_labels <- ifelse(kmQ2$cluster == 1, "M", "B")
+  # Compute accuracy
+accuracy <- mean(cluster_labels == ovarian_scaled_df$Diagnosis)
+
+# If accuracy < 10%, flip the labels
+if (accuracy < 0.1) {
+  cluster_labels <- ifelse(kmQ2$cluster == 1, "B", "M")
+}
 
 table(True = ovarian_scaled_df$Diagnosis, Cluster = cluster_labels)
 
   # Print iteration number
+
+
   cat("\n--- K-means Run", i, "---\n")
   
   # Show confusion table
   print(table(True = ovarian_scaled_df$Diagnosis, Cluster = cluster_labels))
 }
+
 
 
   
@@ -181,7 +196,7 @@ ovarian_pca_df$Diagnosis <- ovarian.dataset$diagnosis
 cluster_labels_pca <- ifelse(km_pca$cluster == 1, "B", "M")
 
 table(True = ovarian_pca_df$Diagnosis, Cluster = cluster_labels_pca)
-
+# 
 
 ```
 
@@ -190,30 +205,99 @@ table(True = ovarian_pca_df$Diagnosis, Cluster = cluster_labels_pca)
 # Extract top 5 PCs from your PCA result
 pca_top_5 <- as.data.frame(pca_result$x[, 1:5])
 
-# Add diagnosis labels (from original dataset)
 pca_top_5$Diagnosis <- ovarian.dataset$diagnosis
 
-# Run K-means 10 times
 for (i in 1:10) {
-  set.seed(i)  # ensures reproducibility with different seeds each time
+  set.seed(i) 
   
   kmQ2 <- kmeans(pca_top_5[, 1:5], centers = 2, nstart = 1)
   
   ovarian_scaled_df <- pca_top_5
   ovarian_scaled_df$Cluster <- kmQ2$cluster
   
-  # Convert cluster numbers to labels
   cluster_labels <- ifelse(kmQ2$cluster == 1, "B", "M")
-  
-  # Print results
-  cat("\n--- K-means Run", i, "---\n")
+ 
+  cat("\nK-means Run", i, "\n")
   print(table(True = ovarian_scaled_df$Diagnosis, Cluster = cluster_labels))
 }
 
 ```
 
 ```{r}
+ovarian.dataset$diagnosis <- factor(ovarian.dataset$diagnosis, levels = c("B", "M"))
 
+ovarian.dataset.train <- ovarian.dataset[sample(nrow(ovarian.dataset))[1:(nrow(ovarian.dataset)/2)],]
+ovarian.dataset.test <- ovarian.dataset[sample(nrow(ovarian.dataset))[(nrow(ovarian.dataset)/2):(nrow(ovarian.dataset))],]
+
+```
+
+```{r}
+
+# Fit logistic regression with warning handler
+model1 <- tryCatch({
+  glm(diagnosis ~ ., data = ovarian.dataset.train, family = binomial)
+}, warning = function(w) {
+  suppressWarnings(glm(diagnosis ~ ., data = ovarian.dataset.train, family = binomial))
+}, error = function(e) {
+  stop("❌ Logistic regression failed: ", e$message)
+})
+
+# Predict probabilities on the test set
+test_probs <- predict(model1, ovarian.dataset.test, type = "response")
+
+# Convert probabilities to labels (threshold = 0.5)
+test_pred <- ifelse(test_probs > 0.5, "M", "B")
+
+# Compare with true labels
+table(True = ovarian.dataset.test$diagnosis, Predicted = test_pred)
+
+```
+
+
+```{r}
+pca_top_5$diagnosis <- ovarian.dataset$diagnosis 
+pca_top_5.train <- pca_top_5[sample(nrow(pca_top_5))[1:(nrow(pca_top_5)/2)],]
+pca_top_5.test <- pca_top_5[sample(nrow(pca_top_5))[(nrow(pca_top_5)/2):(nrow(pca_top_5))],]
+
+model2 <- tryCatch({
+  glm(diagnosis ~ ., data = pca_top_5.train, family = binomial)
+}, warning = function(w) {
+  suppressWarnings(glm(diagnosis ~ ., data = pca_top_5.train, family = binomial))
+}, error = function(e) {
+  stop("❌ Logistic regression failed: ", e$message)
+})
+
+test_probs <- predict(model2, pca_top_5.test, type = "response")
+
+test_pred <- ifelse(test_probs > 0.5, "M", "B")
+
+table(True = pca_top_5.test$diagnosis, Predicted = test_pred)
+```
+
+
+```{r}
+#library(ROCR)
+pred.prob <- predict(model1, ovarian.dataset, type="response")
+predict <- prediction(pred.prob, ovarian.dataset$diagnosis, label.ordering=c("B","M"))
+perform <- performance(predict,"tpr","fpr")
+plot(perform,colorize=TRUE)
+
+
+```
+
+
+```{r}
+library(MASS)
+model_new <- lda(diagnosis ~ ., data = ovarian.dataset.train)
+model_new <- predict(model_new, ovarian.dataset.test)$class
+table(True = ovarian.dataset.test$diagnosis, Predicted = model_new)
+
+
+pca_top_5.train <- pca_top_5.train[, !names(pca_top_5.train) %in% c("Diagnosis")]
+pca_top_5.test  <- pca_top_5.test[, !names(pca_top_5.test) %in% c("Diagnosis")]
+model_new_pca <- lda(diagnosis ~ ., data = pca_top_5.train)
+lda_pred <- predict(model_new_pca, pca_top_5.test)$class
+table(True = pca_top_5.test$diagnosis, Predicted = lda_pred)
 
 ```
 
@@ -221,3 +305,4 @@ for (i in 1:10) {
 
 
 ```
+
