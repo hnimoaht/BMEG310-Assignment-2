@@ -8,13 +8,37 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-## 1. Dimensionality reduction
-```{r}
 
+## Load Data
+
+```{r}
+    # load data
+    ovarian.dataset <- read.csv("ovarian.csv", sep = ",", header = FALSE)
+
+    # assign column names
+    features <- c("perimeter", "area", "smoothness", "symmetry", "concavity", paste("protein", seq(1,25), sep=""))
+    colnames(ovarian.dataset) <- c("cell_id", "diagnosis", features)
 ```
+
+# 1. Dimensionality reduction
 
 ## 1.1 Perform PCA on the features of the dataset. How much of the variation in the data is associated with PC1?
 ```{r}
+
+    #we will be running PCA on the feature columns only, to caputure the variance in the data.
+
+    # removing non-feature columns
+    feature.data <- ovarian.dataset[, features]
+
+    # do PCA (center & scale = TRUE)
+    pca.result <- prcomp(feature.data, center = TRUE, scale. = TRUE)
+
+    # view summary of PCA
+    summary(pca.result)
+
+    # value of variation associated with PC1
+    pc1_variance <- summary(pca.result)$importance[2, 1]
+    pc1_variance
 
 ```
 
