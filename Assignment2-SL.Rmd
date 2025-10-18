@@ -7,6 +7,8 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
     knitr::opts_chunk$set(echo = TRUE)
+    library(ggplot2)
+    library(reshape2)
 ```
 
 ## Load Data
@@ -56,26 +58,90 @@ output: pdf_document
 ## 1.2 You want to represent 90% of the variance in the data by dimensionality reduction. How many PCs do you need to achieve this? In other word, what would be the dimensionality of the reduced feature space so that you preserve 90% of the variability in the data?
 ```{r}
 
+    # get cumulative proportion of variance
+    var.explained <- summary(pca.result)$importance[2, ] * 100
+    cum.var <- summary(pca.result)$importance[3, ] * 100
+
+    # no. of PCs needed for 90%
+    num.pc.90 <- which(cum.var >= 90)[1]
+    num.pc.90
+    cum.var[num.pc.90]
+
+    # using a plot to visualize the cumulative variance explained
+    plot(cum.var, type = "b", pch = 19, 
+        xlab = "Number of Principal Components", 
+        ylab = "Cumulative Variance Explained (%)",
+        main = "Scree Plot: Cumulative Variance Explained")
+    abline(h = 90, col = "red", lty = 2)
+
 ```
 
 
 ## 1.3 As you should know by now, PCA transforms the data into a new space. In a 2-D plot, can you plot the observations corresponding to the first two important PCs? Note, use two different colors to represent the two classes of cells.
 ```{r}
+    # PCA data frame with diagnosis label
+    pca.data <- as.data.frame(pca.result$x)
+    pca.data$diagnosis <- ovarian.dataset$diagnosis
 
+    # variance percentages for labeling
+    var.explained <- summary(pca.results)$importance[2, 1:2] * 100
+
+    # making plot
+    ggplot(pca.data, aes(x = PC1, y = PC2, color = diagnosis)) + geom_point(size = 2, alpha = 0.7) +
+    labs(
+        title = "PCA Plot of Ovarian Cell Features",
+        x = paste0("PC1 (", round(var.explained[1], 1), "% variance)"),
+        y = paste0("PC2 (", round(var.explained[2], 1), "% variance)"),
+        color = "Diagnosis"
+    ) + theme_minimal()
 ```
 
 ## 1.4  Can you plot the "area" and "concavity"  features associated with the cells?
 ```{r}
-
+    ggplot(ovarian.dataset, aes(x = area, y = concavity, color = diagnosis)) + geom_point(size = 2, alpha = 0.7) +
+    labs(
+        title = "Area vs Concavity of Ovarian Cell Features",
+        x = "Area",
+        y = "Concavity",
+        color = "Diagnosis"
+    ) + theme_minimal()
 ```
 
 ## 1.5 What is the difference between the two plots? Which one gives you better separation between the classes and why?
 ```{r}
-
+    # The PCA plot provides better separation between the classes compared to the area vs concavity plot.
+    # This is because PCA combines information from all features to create new axes (principal components) that maximize variance.
+    # In contrast, the area vs concavity plot only considers two features, which may not capture the overall structure of the data as effectively. 
+    # The PCA plot thus reveals clearer clustering of the two classes (benign vs malignant) by leveraging the combined variance from all features.
+    # Each PC captures the strongest patterns in the data, leading to improved class separation.
 ```
 
 ## 1.6 Plot the distribution of the PCs. Hint: you can use boxplot on the transformed dataset.
 ```{r}
+    # convert PCA data to long format for plotting
+    pca.long <- reshape2::melt(pca.data, id.vars = "diagnosis")
 
+    # boxplot of each PC by diagnosis
+    ggplot(pca.long, aes(x = variable, y = value, fill = diagnosis)) + geom_boxplot(outlier.size = 0.5, alpha = 0.7) +
+    labs(
+        title = "Distribution of Principal Components by Diagnosis",
+        x = "Principal Component",
+        y = "PC Value"
+    ) + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+    # From the boxplots, we can observe that certain PCs show more distinct separation between the benign and malignant classes.
+    # This indicates that these PCs capture features that are more relevant for distinguishing between the two classes.
+    # This confirms that the most diagnostic information is contained within the first few principal components.
 ```
+
+# 2. Clustering
+
+## 2.1 Apply kmeans clustering on the data and identify two clusters within your dataset. What is the concordance between the clusters that you have identified and the true labels of the cells (Benign vs Malignant).
+
+## 2.2 Repeat the kmeans analysis 10 times and report the mean accuracy across the 10 runs. Why are the results different in each run? 
+
+## 2.3 Repeat the same analysis but with the top 5 PCs. 
+
+## 2.4 Compare the results obtained in 2.2 and 2.3.
+
 
