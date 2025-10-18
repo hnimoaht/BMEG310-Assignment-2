@@ -138,10 +138,144 @@ output: pdf_document
 
 ## 2.1 Apply kmeans clustering on the data and identify two clusters within your dataset. What is the concordance between the clusters that you have identified and the true labels of the cells (Benign vs Malignant).
 
+```{r}
+    set.seed(123)  # for reproducibility
+    feature.data <- scale(ovarian.dataset[, 3:ncol(ovarian.dataset) - 1])  
+    # this doesn't include cell_id and diagnosis columns
+
+    # perform kmeans clustering with 2 clusters
+    kmeans.result <- kmeans(feature.data, centers = 2, nstart = 25)
+
+    # add cluster assignments to original data
+    ovarian.dataset$cluster <- as.factor(kmeans.result$cluster)
+
+    # create a confusion matrix to compare clusters with true labels
+    confusion.matrix <- table(Cluster = ovarian.dataset$cluster, Diagnosis = ovarian.dataset$diagnosis)
+    confusion.matrix
+
+    # calculate accuracy
+    accuracy <- sum(diag(confusion.matrix)) / sum(confusion.matrix)
+    accuracy
+```
+
 ## 2.2 Repeat the kmeans analysis 10 times and report the mean accuracy across the 10 runs. Why are the results different in each run? 
 
+```{r}
+    set.seed(123)  # for reproducibility
+    accuracies <- numeric(10)
+
+    # loop to run kmeans 10 times
+    for (i in 1:10) {
+        kmeans.result <- kmeans(feature.data, centers = 2, nstart = 25)
+        ovarian.dataset$cluster <- as.factor(kmeans.result$cluster)
+        confusion.matrix <- table(Cluster = ovarian.dataset$cluster, Diagnosis = ovarian.dataset$diagnosis)
+        accuracies[i] <- sum(diag(confusion.matrix)) / sum(confusion.matrix)
+    }
+
+    # calculate mean accuracy
+    mean.accuracy <- mean(accuracies)
+    mean.accuracy
+
+    # The results differ in each run because k-means clustering is sensitive to the initial placement of centroids.
+    # Different initializations can lead to different cluster assignments, especially in datasets with overlapping clusters or
+    # complex structures. Using multiple starts (nstart) helps mitigate this by exploring various initial configurations.
+```
+
 ## 2.3 Repeat the same analysis but with the top 5 PCs. 
+```{r}
+    set.seed(123)  # for reproducibility
+    pca.feature.data <- pca.data[, 1:5]  # using top 5 PCs
+    accuracies.pca <- numeric(10)
+
+    # loop to run kmeans 10 times on PCA data
+    for (i in 1:10) {
+        kmeans.result <- kmeans(pca.feature.data, centers = 2, nstart = 25)
+        pca.data$cluster <- as.factor(kmeans.result$cluster)
+        confusion.matrix <- table(Cluster = pca.data$cluster, Diagnosis = pca.data$diagnosis)
+        accuracies.pca[i] <- sum(diag(confusion.matrix)) / sum(confusion.matrix)
+    }
+
+    # calculate mean accuracy for PCA-based clustering
+    mean.accuracy.pca <- mean(accuracies.pca)
+    mean.accuracy.pca
+```
 
 ## 2.4 Compare the results obtained in 2.2 and 2.3.
+```{r}
+    # The mean accuracy obtained using the original feature set (2.2) is compared to that obtained using the top 5 PCs (2.3).
+    # Typically, clustering on PCA-reduced data can yield similar or even improved accuracy due to noise reduction and
+    # elimination of redundant features. However, the actual results may vary based on the dataset characteristics.
+    # In this case, we can observe whether dimensionality reduction via PCA has enhanced the clustering performance.
+```
+
+# 3. Classification
+```{r}
+
+    ovarian.dataset.clean <- ovarian.dataset[, !(names(ovarian.dataset) %in% c("cluster"))]
+
+    set.seed(123)  # reproducibility
+
+    # randomize all row indices once
+    rows <- sample(nrow(ovarian.dataset.clean))
+
+    # split into two halves
+    train.indices <- rows[1:(nrow(ovarian.dataset.clean)/2)]
+    test.indices <- rows[(nrow(ovarian.dataset.clean)/2 + 1):nrow(ovarian.dataset.clean)]
+
+    # assign subsets
+    ovarian.dataset.train <- ovarian.dataset.clean[train.indices, ]
+    ovarian.dataset.test <- ovarian.dataset.clean[test.indices, ]
+
+```
+
+## 3.1 Design a logistic regression classifier to identify (differentiate) benign and malignant cells. Report the performance of the classification technique on the training and test sets. You can report accuracy, precision and recall. Compare the performance of the classifier on the training and test set and provide a reason as to why one is better than the other.
+```{r}
+    # fit logistic regression model
+    logit.model <- glm(diagnosis ~ ., data = ovarian.dataset.train[, -1], family = binomial)
+
+    # make predictions on training set
+    train.probs <- predict(logit.model, type = "response")
+    train.pred <- ifelse(train.probs > 0.5, "M", "B")
+
+    # confusion matrix for training set
+    train.confusion <- table(Predicted = train.pred, Actual = ovarian.dataset.train$diagnosis)
+
+    # calculate accuracy, precision, recall for training set
+    train.accuracy <- sum(diag(train.confusion)) / sum(train.confusion)
+    train.precision <- train.confusion["M", "M"] / sum(train.confusion["M", ])
+    train.recall <- train.confusion["M", "M"] / sum(train.confusion[, "M"])
+
+    # make predictions on test set
+    test.probs <- predict(logit.model, newdata = ovarian.dataset.test[, -1], type = "response")
+    test.pred <- ifelse(test.probs > 0.5, "M", "B")
+
+    # confusion matrix for test set
+    test.confusion <- table(Predicted = test.pred, Actual = ovarian.dataset.test$diagnosis)
+
+    # calculate accuracy, precision, recall for test set
+    test.accuracy <- sum(diag(test.confusion)) / sum(test.confusion)
+    test.precision <- test.confusion["M", "M"] / sum(test.confusion["M", ])
+    test.recall <- test.confusion["M", "M"] / sum(test.confusion[, "M"])
+
+    # output results
+    list(
+        Train = list(Accuracy = train.accuracy, Precision = train.precision, Recall = train.recall),
+        Test = list(Accuracy = test.accuracy, Precision = test.precision, Recall = test.recall)
+    )
+```
+
+## 3.2 Repeat the same task as Q3.1. with the top 5 PCs.
+
+
+## 3.3 Compare the results between Q3.1. and Q3.2. Do the results get better or worse? Why?
+
+## 3.4 Compare the results of the clustering and classification methods. Which one gives you better result?
+
+## 3.5 Install the library "ROCR" and load it. Then, run the following lines using your trained logistic regression model:
+
+## 3.6 Design another classifier (using a different classification method) and repeat Q3.1-3.
+
+
+
 
 
