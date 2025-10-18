@@ -11,6 +11,8 @@ output: pdf_document
     library(reshape2)
     library(ROCR)
     library(randomForest)
+    library(factoextra)
+    library(cluster)
 ```
 
 ## Load Data
@@ -29,7 +31,7 @@ output: pdf_document
 ## 1.1 Perform PCA on the features of the dataset. How much of the variation in the data is associated with PC1?
 ```{r}
 
-    #we will be running PCA on the feature columns only, to caputure the variance in the data.
+    # we will be running PCA on the feature columns only, to caputure the variance in the data.
 
     # removing non-feature columns
     feature.data <- ovarian.dataset[, features]
@@ -55,6 +57,8 @@ output: pdf_document
     pc1_variance <- summary(pca.result)$importance[2, 1]
     pc1_variance
 
+    # With a PC1 variance of 0.42768, this means that 42.77% of the total variation in the dataset is defined by the first principal component.
+
 ```
 
 ## 1.2 You want to represent 90% of the variance in the data by dimensionality reduction. How many PCs do you need to achieve this? In other word, what would be the dimensionality of the reduced feature space so that you preserve 90% of the variability in the data?
@@ -76,6 +80,9 @@ output: pdf_document
         main = "Scree Plot: Cumulative Variance Explained")
     abline(h = 90, col = "red", lty = 2)
 
+    # To preserve 90% of the variability in the data, we need 9 principal components. 
+    # A reduced feature space would thus have a dimensionality of 9 & be adequate for 90% variability retention.
+
 ```
 
 
@@ -85,17 +92,26 @@ output: pdf_document
     pca.data <- as.data.frame(pca.result$x)
     pca.data$diagnosis <- ovarian.dataset$diagnosis
 
+    #relabeling diagnosis column
+    pca.data$diagnosis <- factor(pca.data$diagnosis, levels = c("B", "M"), labels = c("Diagnosis 1", "Diagnosis 2"))
+
     # variance percentages for labeling
     var.explained <- summary(pca.result)$importance[2, 1:2] * 100
 
     # making plot
-    ggplot(pca.data, aes(x = PC1, y = PC2, color = diagnosis)) + geom_point(size = 2, alpha = 0.7) +
-    labs(
-        title = "PCA Plot of Ovarian Cell Features",
-        x = paste0("PC1 (", round(var.explained[1], 1), "% variance)"),
-        y = paste0("PC2 (", round(var.explained[2], 1), "% variance)"),
-        color = "Diagnosis"
-    ) + theme_minimal()
+    fviz_pca_ind(
+        pca.result,                              
+        geom = "point",
+        habillage = as.factor(pca.data$diagnosis),  
+        addEllipses = TRUE,                         
+        ellipse.type = "norm",
+        legend.title = "Diagnosis",
+        title = "PCA of Ovarian Cell Features (factoextra)"
+    )
+
+    # There are two clearly defined clusters in the PCA plot, corresponding to the two diagnoses.
+    # This indicates that the first two principal components effectively separate the two classes of cells (benign vs malignant).
+    # The overlap is evident, but suggests that there are more distinct patterns in higher dimensions - that simply get reduced in 2D.
 ```
 
 ## 1.4  Can you plot the "area" and "concavity"  features associated with the cells?
@@ -107,15 +123,34 @@ output: pdf_document
         y = "Concavity",
         color = "Diagnosis"
     ) + theme_minimal()
+
+    # The scatter plot of area vs concavity shows some slight separation between the two diagnoses, but there is considerable overlap, and likely not distinguishable without colors.
+    # This indicates that these two features alone are insufficient to effectively separate the two classes of cells (benign vs malignant).
+
 ```
 
 ## 1.5 What is the difference between the two plots? Which one gives you better separation between the classes and why?
 ```{r}
+
     # The PCA plot provides better separation between the classes compared to the area vs concavity plot.
     # This is because PCA combines information from all features to create new axes (principal components) that maximize variance.
-    # In contrast, the area vs concavity plot only considers two features, which may not capture the overall structure of the data as effectively. 
+    # In contrast, the area vs concavity plot only considers two features, which don't capture the overall structure of the data as effectively. 
     # The PCA plot thus reveals clearer clustering of the two classes (benign vs malignant) by leveraging the combined variance from all features.
-    # Each PC captures the strongest patterns in the data, leading to improved class separation.
+
+    concav <- ovarian.dataset$concavity
+    area <- ovarian.dataset$area
+
+    boxplot(area ~ diagnosis, data=ovarian.dataset,
+        main="Boxplot of Area by Diagnosis", col=c("#00BFC4","#F8766D"),
+        xlab="Diagnosis", ylab="Area")
+
+    boxplot(concav ~ diagnosis, data=ovarian.dataset,
+        main="Boxplot of Concavity by Diagnosis", col=c("#00BFC4F","#F8766D"),
+        xlab="Diagnosis", ylab="Concavity")
+
+    # We can see there is some correlation between area and concavity with diagnosis, where they are larger for a likely malignant cell.
+    # However, it is better to run PCA to combine all features for better separation & a robust analysis.
+
 ```
 
 ## 1.6 Plot the distribution of the PCs. Hint: you can use boxplot on the transformed dataset.
@@ -132,8 +167,9 @@ output: pdf_document
     ) + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
     # From the boxplots, we can observe that certain PCs show more distinct separation between the benign and malignant classes.
-    # This indicates that these PCs capture features that are more relevant for distinguishing between the two classes.
+    # This indicates that these PCs capture features that are more relevant for distinguishing between the two classes & thus clustering.
     # This confirms that the most diagnostic information is contained within the first few principal components.
+    # Outliers are also visibile in several PCs, which also affects the reliability of using such PCs for classification.
 ```
 
 # 2. Clustering
@@ -141,37 +177,65 @@ output: pdf_document
 ## 2.1 Apply kmeans clustering on the data and identify two clusters within your dataset. What is the concordance between the clusters that you have identified and the true labels of the cells (Benign vs Malignant).
 
 ```{r}
-    set.seed(123)  # for reproducibility
-    feature.data <- scale(ovarian.dataset[, 3:ncol(ovarian.dataset) - 1])  
-    # this doesn't include cell_id and diagnosis columns
+    # scale all features (excluding cell_id and diagnosis)
+    feature.scaled <- scale(ovarian.dataset[, 3:(ncol(ovarian.dataset) - 1)])  
 
     # perform kmeans clustering with 2 clusters
-    kmeans.result <- kmeans(feature.data, centers = 2, nstart = 25)
+    kmeans.result <- kmeans(feature.scaled, centers = 2, nstart = 100)
 
-    # add cluster assignments to original data
+    # add cluster assignments to dataset
     ovarian.dataset$cluster <- as.factor(kmeans.result$cluster)
 
-    # create a confusion matrix to compare clusters with true labels
+    # create confusion matrix vs. true labels
     confusion.matrix <- table(Cluster = ovarian.dataset$cluster, Diagnosis = ovarian.dataset$diagnosis)
     confusion.matrix
 
-    # calculate accuracy
+    # calculate accuracy with condition of larger than 0.15, because clusters kept being swapped below this value from our analysis.
     accuracy <- sum(diag(confusion.matrix)) / sum(confusion.matrix)
+    if (accuracy < 0.15) {
+        accuracy <- 1 - accuracy  # adjust if clusters are swapped
+    }
     accuracy
+
+    # prepare scaled data frame for plotting
+    ovarian.scaled.df <- as.data.frame(feature.scaled)
+    ovarian.scaled.df$Cluster <- kmeans.result$cluster
+    ovarian.scaled.df$Diagnosis <- ovarian.dataset$diagnosis
+
+    # map clusters to diagnosis labels
+    cluster.labels <- ifelse(kmeans.result$cluster == 1, "M", "B")
+
+    # check alignment table
+    table(True = ovarian.scaled.df$Diagnosis, Cluster = cluster.labels)
+
+    # visualize k-means clustering
+    fviz_cluster(
+        kmeans.result, 
+        data = feature.scaled, 
+        geom = "point",
+    )
+
+    # The output of the kmeans shows that since we are using the nstart parameter, the results remain consistent. 
+    # This makes sense, as k-means should produce stable and repeatable clusters by averaging over multiple random initializations. 
+    # The only variation between runs is which group is labeled as Cluster 1 or Cluster 2, meaning that when analyzing the results, we must rely on our background knowledge and intuition to correctly interpret which cluster corresponds to malignant or benign cases.
 ```
 
 ## 2.2 Repeat the kmeans analysis 10 times and report the mean accuracy across the 10 runs. Why are the results different in each run? 
 
 ```{r}
-    set.seed(123)  # for reproducibility
     accuracies <- numeric(10)
 
-    # loop to run kmeans 10 times
+    # loop to run kmeans 10 times with same accuracy adjustment
     for (i in 1:10) {
-        kmeans.result <- kmeans(feature.data, centers = 2, nstart = 25)
+        kmeans.result <- kmeans(feature.data, centers = 2, nstart = 1)
         ovarian.dataset$cluster <- as.factor(kmeans.result$cluster)
         confusion.matrix <- table(Cluster = ovarian.dataset$cluster, Diagnosis = ovarian.dataset$diagnosis)
         accuracies[i] <- sum(diag(confusion.matrix)) / sum(confusion.matrix)
+
+        if (accuracies[i] < 0.15) {
+            cluster_labels <- ifelse(kmeans.result$cluster == "B", "M", "B")
+            accuracies[i] <- mean(ovarian.dataset$diagnosis == cluster_labels)
+        }
     }
 
     # calculate mean accuracy
@@ -179,127 +243,103 @@ output: pdf_document
     mean.accuracy
 
     # The results differ in each run because k-means clustering is sensitive to the initial placement of centroids.
-    # Different initializations can lead to different cluster assignments, especially in datasets with overlapping clusters or
-    # complex structures. Using multiple starts (nstart) helps mitigate this by exploring various initial configurations.
+    # Different initializations can lead to different cluster assignments, especially in datasets with overlapping clusters or complex structures. Using multiple starts (nstart) helps mitigate this by exploring various initial configurations.
 ```
 
 ## 2.3 Repeat the same analysis but with the top 5 PCs. 
 ```{r}
-    set.seed(123)  # for reproducibility
     pca.feature.data <- pca.data[, 1:5]  # using top 5 PCs
     accuracies.pca <- numeric(10)
 
-    # loop to run kmeans 10 times on PCA data
+    # loop to run kmeans 10 times on PCA data 
     for (i in 1:10) {
         kmeans.result <- kmeans(pca.feature.data, centers = 2, nstart = 25)
         pca.data$cluster <- as.factor(kmeans.result$cluster)
         confusion.matrix <- table(Cluster = pca.data$cluster, Diagnosis = pca.data$diagnosis)
         accuracies.pca[i] <- sum(diag(confusion.matrix)) / sum(confusion.matrix)
+
+         if (accuracies.pca[i] < 0.15) {
+            cluster_label.pca <- ifelse(kmeans.result$cluster == "B", "M", "B")
+            accuracies.pca[i] <- mean(pca.data$diagnosis == cluster_label.pca)
+        }
     }
 
     # calculate mean accuracy for PCA-based clustering
     mean.accuracy.pca <- mean(accuracies.pca)
     mean.accuracy.pca
+
+    # This approach was similar to 2.1 however with a reduced number of features (top 5 PCs).
 ```
 
 ## 2.4 Compare the results obtained in 2.2 and 2.3.
 ```{r}
-    # The mean accuracy obtained using the original feature set (2.2) is compared to that obtained using the top 5 PCs (2.3).
-    # Typically, clustering on PCA-reduced data can yield similar or even improved accuracy due to noise reduction and
-    # elimination of redundant features. However, the actual results may vary based on the dataset characteristics.
-    # In this case, we can observe whether dimensionality reduction via PCA has enhanced the clustering performance.
+    # Once again, we expect the outputs to change due to randomized cluster initializations.
+    # The mean accuracy obtained using the original feature set (2.2) is better compared to that obtained using the top 5 PCs (2.3).
+    # The data structure and variance captured by all PCs allows for a more robust analysis.
+    # Typically, clustering on PCA-reduced data can yield similar or even improved accuracy due to noise reduction and elimination of redundant features, but in this case, reduces too many features.
+    # The top 5 only include 80% of the variance.
 ```
 
 # 3. Classification
 ```{r}
 
-    ovarian.dataset.clean <- ovarian.dataset[, !(names(ovarian.dataset) %in% c("cluster"))]
+    ovarian.dataset$diagnosis <- factor(ovarian.dataset$diagnosis, levels = c("B", "M"))
 
-    set.seed(123)  # reproducibility
-
-    # randomize all row indices once
-    rows <- sample(nrow(ovarian.dataset.clean))
-
-    # split into two halves
-    train.indices <- rows[1:(nrow(ovarian.dataset.clean)/2)]
-    test.indices <- rows[(nrow(ovarian.dataset.clean)/2 + 1):nrow(ovarian.dataset.clean)]
-
-    # assign subsets
-    ovarian.dataset.train <- ovarian.dataset.clean[train.indices, ]
-    ovarian.dataset.test <- ovarian.dataset.clean[test.indices, ]
+    ovarian.dataset.train <- ovarian.dataset[sample(nrow(ovarian.dataset))[1:(nrow(ovarian.dataset)/2)],]
+    ovarian.dataset.test <- ovarian.dataset[sample(nrow(ovarian.dataset))[(nrow(ovarian.dataset)/2):(nrow(ovarian.dataset))],]
 
 ```
 
 ## 3.1 Design a logistic regression classifier to identify (differentiate) benign and malignant cells. Report the performance of the classification technique on the training and test sets. You can report accuracy, precision and recall. Compare the performance of the classifier on the training and test set and provide a reason as to why one is better than the other.
 ```{r}
-    # fit logistic regression model
-    logit.model <- glm(diagnosis ~ ., data = ovarian.dataset.train[, -1], family = binomial)
+    
+    # fit logistic regression with warning handler
+    model1 <- tryCatch({
+        glm(diagnosis ~ ., data = ovarian.dataset.train, family = binomial)
+    }, warning = function(w) {
+        suppressWarnings(glm(diagnosis ~ ., data = ovarian.dataset.train, family = binomial))
+    }, error = function(e) {
+        stop("❌ Logistic regression failed: ", e$message)
+    })
 
-    # make predictions on training set
-    train.probs <- predict(logit.model, type = "response")
-    train.pred <- ifelse(train.probs > 0.5, "M", "B")
+    # predict probabilities on the test set
+    test_probs <- predict(model1, ovarian.dataset.test, type = "response")
 
-    # confusion matrix for training set
-    train.confusion <- table(Predicted = train.pred, Actual = ovarian.dataset.train$diagnosis)
+    # convert probabilities to labels (threshold = 0.5)
+    test_pred <- ifelse(test_probs > 0.5, "M", "B")
 
-    # calculate accuracy, precision, recall for training set
-    train.accuracy <- sum(diag(train.confusion)) / sum(train.confusion)
-    train.precision <- train.confusion["M", "M"] / sum(train.confusion["M", ])
-    train.recall <- train.confusion["M", "M"] / sum(train.confusion[, "M"])
+    # compare with true labels
+    table(True = ovarian.dataset.test$diagnosis, Predicted = test_pred)
 
-    # make predictions on test set
-    test.probs <- predict(logit.model, newdata = ovarian.dataset.test[, -1], type = "response")
-    test.pred <- ifelse(test.probs > 0.5, "M", "B")
 
-    # confusion matrix for test set
-    test.confusion <- table(Predicted = test.pred, Actual = ovarian.dataset.test$diagnosis)
-
-    # calculate accuracy, precision, recall for test set
-    test.accuracy <- sum(diag(test.confusion)) / sum(test.confusion)
-    test.precision <- test.confusion["M", "M"] / sum(test.confusion["M", ])
-    test.recall <- test.confusion["M", "M"] / sum(test.confusion[, "M"])
-
-    # output results
-    list(
-        Train = list(Accuracy = train.accuracy, Precision = train.precision, Recall = train.recall),
-        Test = list(Accuracy = test.accuracy, Precision = test.precision, Recall = test.recall)
-    )
 ```
 
 ## 3.2 Repeat the same task as Q3.1. with the top 5 PCs.
 ```{r}
-    # fit logistic regression model on top 5 PCs
-    logit.model.pca <- glm(diagnosis ~ ., data = pca.data[train.indices, c(1:5, ncol(pca.data))], family = binomial)
+    # get top 5 PCs
+    pca_top_5 <- pca.data[, 1:5]
 
-    # make predictions on training set
-    train.probs.pca <- predict(logit.model.pca, type = "response")
-    train.pred.pca <- ifelse(train.probs.pca > 0.5, "M", "B")
+    # prepare PCA data for logistic regression
+    pca_top_5$diagnosis <- ovarian.dataset$diagnosis 
+    pca_top_5.train <- pca_top_5[sample(nrow(pca_top_5))[1:(nrow(pca_top_5)/2)],]
+    pca_top_5.test <- pca_top_5[sample(nrow(pca_top_5))[(nrow(pca_top_5)/2):(nrow(pca_top_5))],]
 
-    # confusion matrix for training set
-    train.confusion.pca <- table(Predicted = train.pred.pca, Actual = pca.data[train.indices, "diagnosis"])
+    # fit logistic regression on PCA data
+    model2 <- tryCatch({ 
+        glm(diagnosis ~ ., data = pca_top_5.train, family = binomial)
+    }, warning = function(w) {
+    suppressWarnings(glm(diagnosis ~ ., data = pca_top_5.train, family = binomial))
+    }, error = function(e) {
+        stop("❌ Logistic regression failed: ", e$message)
+    })
 
-    # calculate accuracy, precision, recall for training set
-    train.accuracy.pca <- sum(diag(train.confusion.pca)) / sum(train.confusion.pca)
-    train.precision.pca <- train.confusion.pca["M", "M"] / sum(train.confusion.pca["M", ])
-    train.recall.pca <- train.confusion.pca["M", "M"] / sum(train.confusion.pca[, "M"])
+    # predict probabilities on PCA test set
+    test_probs <- predict(model2, pca_top_5.test, type = "response")
 
-    # make predictions on test set
-    test.probs.pca <- predict(logit.model.pca, newdata = pca.data[test.indices, c(1:5, ncol(pca.data))], type = "response")
-    test.pred.pca <- ifelse(test.probs.pca > 0.5, "M", "B")
+    test_pred <- ifelse(test_probs > 0.5, "M", "B")
 
-    # confusion matrix for test set
-    test.confusion.pca <- table(Predicted = test.pred.pca, Actual = pca.data[test.indices, "diagnosis"])
+    table(True = pca_top_5.test$diagnosis, Predicted = test_pred)
 
-    # calculate accuracy, precision, recall for test set
-    test.accuracy.pca <- sum(diag(test.confusion.pca)) / sum(test.confusion.pca)
-    test.precision.pca <- test.confusion.pca["M", "M"] / sum(test.confusion.pca["M", ])
-    test.recall.pca <- test.confusion.pca["M", "M"] / sum(test.confusion.pca[, "M"])
-
-    # output results
-    list(
-        Train = list(Accuracy = train.accuracy.pca, Precision = train.precision.pca, Recall = train.recall.pca),
-        Test = list(Accuracy = test.accuracy.pca, Precision = test.precision.pca, Recall = test.recall.pca)
-    )
 ```
 
 ## 3.3 Compare the results between Q3.1. and Q3.2. Do the results get better or worse? Why?
@@ -321,26 +361,13 @@ output: pdf_document
 
 ## 3.5 Install the library "ROCR" and load it. Then, run the following lines using your trained logistic regression model:
 ```{r}
-    library(ROCR)
 
-    # predictions on test set
-    test.probs <- predict(logit.model, newdata = ovarian.dataset.test[, -1], type = "response")
-
-    # create prediction object
-    pred <- prediction(test.probs, ovarian.dataset.test$diagnosis)
-
-    # performance object for ROC curve
-    perf <- performance(pred, "tpr", "fpr")
-
-    # plot ROC curve
-    plot(perf, col = "blue", lwd = 2, main = "ROC Curve")
-    abline(a = 0, b = 1, lty = 2, col = "red")
-    par(mfrow = c(1, 1))  # ensures ROC plot has full space
-
-    # calculate AUC
-    auc <- performance(pred, measure = "auc")
-    auc.value <- auc@y.value[[1]]
-    auc.value
+    # use ROCR to plot ROC curve
+    pred.prob <- predict(model1, ovarian.dataset, type="response")
+    predict <- prediction(pred.prob, ovarian.dataset$diagnosis, label.ordering=c("B","M"))
+    perform <- performance(predict,"tpr","fpr")
+    plot(perform,colorize=TRUE)
+    
 ```
 
 ## 3.6 Design another classifier (using a different classification method) and repeat Q3.1-3.
