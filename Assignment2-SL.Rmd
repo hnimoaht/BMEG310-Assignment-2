@@ -1,6 +1,6 @@
 ---
 title: "Assignment2-SL"
-author: "Group"
+author: "Sophia Liau & Sarah Dumont"
 date: "2025-10-15"
 output: pdf_document
 ---
@@ -140,12 +140,14 @@ output: pdf_document
     concav <- ovarian.dataset$concavity
     area <- ovarian.dataset$area
 
+    cols <- c("#00BFC4", "#F8766D")
+
     boxplot(area ~ diagnosis, data=ovarian.dataset,
-        main="Boxplot of Area by Diagnosis", col=c("#00BFC4","#F8766D"),
+        main="Boxplot of Area by Diagnosis", col=cols,
         xlab="Diagnosis", ylab="Area")
 
     boxplot(concav ~ diagnosis, data=ovarian.dataset,
-        main="Boxplot of Concavity by Diagnosis", col=c("#00BFC4F","#F8766D"),
+        main="Boxplot of Concavity by Diagnosis", col=cols,
         xlab="Diagnosis", ylab="Concavity")
 
     # We can see there is some correlation between area and concavity with diagnosis, where they are larger for a likely malignant cell.
@@ -367,6 +369,10 @@ output: pdf_document
     predict <- prediction(pred.prob, ovarian.dataset$diagnosis, label.ordering=c("B","M"))
     perform <- performance(predict,"tpr","fpr")
     plot(perform,colorize=TRUE)
+
+    # This ROC curve shows that the classification model (model1) accurately distinguishes benign (“B”) from malignant (“M”) cells, with very few false positives or negatives. 
+    # The steep rise near the left and the curve hugging the top-left corner indicate excellent separation between classes across all probability thresholds. 
+    # Overall, the model demonstrates strong predictive performance.
     
 ```
 
@@ -404,9 +410,16 @@ output: pdf_document
         Train = list(Accuracy = train.accuracy.rf, Precision = train.precision.rf, Recall = train.recall.rf),
         Test = list(Accuracy = test.accuracy.rf, Precision = test.precision.rf, Recall = test.recall.rf)
     )
+
+    # The random forest classifier typically outperforms logistic regression due to its ability to capture complex, non-linear relationships in the data.
+    # It also reduces overfitting through ensemble learning, leading to better generalization on unseen data.
+    # Thus, we expect higher accuracy, precision, and recall metrics from the random forest model compared to logistic regression.
+    # Additionally, random forests can handle feature interactions and non-linearities better than logistic regression, which assumes a linear relationship between features and the log-odds of the outcome.
+
 ```
 
-
+# Contributions
+## Sophia Liau & Sarah Dumont wrote, discussed & compiled the final submission for Assignment 2.
 
 
 
